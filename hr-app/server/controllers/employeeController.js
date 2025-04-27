@@ -16,7 +16,7 @@ const getAllEmployees = async (req, res) => {
 };
 
 // Get employee by Poornata ID
-const getEmployeeById = async (req, res) => {
+const getEmployeeByPoornataId = async (req, res) => {
     try {
         const connection = await oracledb.getConnection();
         const result = await connection.execute(
@@ -166,9 +166,34 @@ const updateEmployee = async (req, res) => {
     }
 };
 
+// Delete employee
+const deleteEmployee = async (req, res) => {
+    try {
+        const connection = await oracledb.getConnection();
+        const result = await connection.execute(
+            'DELETE FROM employees WHERE poornata_id = :id',
+            [req.params.poornataId]
+        );
+        
+        if (result.rowsAffected === 0) {
+            await connection.close();
+            return res.status(404).json({ error: 'Employee not found' });
+        }
+        
+        await connection.commit();
+        await connection.close();
+        
+        res.json({ message: 'Employee deleted successfully' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error deleting employee' });
+    }
+};
+
 module.exports = {
     getAllEmployees,
-    getEmployeeById,
+    getEmployeeByPoornataId,
     createEmployee,
-    updateEmployee
+    updateEmployee,
+    deleteEmployee
 }; 

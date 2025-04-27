@@ -11,6 +11,7 @@ import Typography from '@mui/material/Typography';
 // Import components
 import EmployeeForm from './components/EmployeeForm';
 import HRDashboard from './components/HRDashboard';
+import DocumentGenerator from './components/DocumentGenerator';
 
 const theme = createTheme({
   palette: {
@@ -41,6 +42,7 @@ function App() {
             <Routes>
               <Route path="/" element={<EmployeeForm />} />
               <Route path="/hr" element={<HRDashboard />} />
+              <Route path="/generate-document" element={<DocumentGenerator />} />
             </Routes>
           </Container>
         </Box>
