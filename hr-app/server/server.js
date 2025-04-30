@@ -5,6 +5,7 @@ const oracledb = require('oracledb');
 require('dotenv').config();
 
 const employeeRoutes = require('./routes/employeeRoutes');
+const documentRoutes = require('./routes/documentRoutes');
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -57,12 +58,14 @@ initializePool().then(() => {
 
 // Routes
 app.use('/api/employees', employeeRoutes);
+app.use('/api/documents', documentRoutes);
 
 app.get('/', (req, res) => {
   res.send('HR Application Server is running');
 });
 
 // Start server
-app.listen(port, () => {
+app.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on port ${port}`);
+  console.log(`Accessible at: http://localhost:${port} or http://your-ip:${port}`);
 }); 
