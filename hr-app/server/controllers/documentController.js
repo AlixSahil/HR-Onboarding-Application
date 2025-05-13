@@ -5,26 +5,43 @@ const path = require('path');
 const oracledb = require('oracledb');
 
 // Function to get employee details from Oracle database
-const getEmployeeDetails = async (poornataId) => {
+const getEmployeeDetails = async (personal_email) => {
     try {
         const connection = await oracledb.getConnection();
-        const result = await connection.execute(
-            'SELECT * FROM employees WHERE poornata_id = :id',
-            [poornataId]
+        
+        // Get basic employee information
+        const employeeResult = await connection.execute(
+            'SELECT * FROM Employee WHERE personal_email = :email',
+            [personal_email]
         );
         
-        if (result.rows.length === 0) {
+        if (employeeResult.rows.length === 0) {
             await connection.close();
             return null;
         }
         
+        // Get professional details
+        const professionalResult = await connection.execute(
+            'SELECT * FROM ProfessionalDetails WHERE personal_email = :email',
+            [personal_email]
+        );
+
         // Convert the row data to an object with column names
-        const row = result.rows[0];
-        const columns = result.metaData.map(col => col.name);
+        const employeeRow = employeeResult.rows[0];
+        const employeeColumns = employeeResult.metaData.map(col => col.name);
         const employeeData = {};
-        columns.forEach((col, index) => {
-            employeeData[col] = row[index];
+        employeeColumns.forEach((col, index) => {
+            employeeData[col] = employeeRow[index];
         });
+
+        // Add professional details
+        if (professionalResult.rows.length > 0) {
+            const professionalRow = professionalResult.rows[0];
+            const professionalColumns = professionalResult.metaData.map(col => col.name);
+            professionalColumns.forEach((col, index) => {
+                employeeData[col] = professionalRow[index];
+            });
+        }
         
         await connection.close();
         return employeeData;
@@ -36,29 +53,14 @@ const getEmployeeDetails = async (poornataId) => {
 
 const generateNightShiftDeclaration = async (req, res) => {
     try {
-        const { poornataId } = req.params;
+        const { personal_email } = req.params;
         
         // Get employee details from database
-        const connection = await oracledb.getConnection();
-        const result = await connection.execute(
-            'SELECT * FROM employees WHERE poornata_id = :id',
-            [poornataId]
-        );
+        const employeeData = await getEmployeeDetails(personal_email);
         
-        if (result.rows.length === 0) {
-            await connection.close();
+        if (!employeeData) {
             return res.status(404).json({ error: 'Employee not found' });
         }
-        
-        // Convert the row data to an object with column names
-        const row = result.rows[0];
-        const columns = result.metaData.map(col => col.name);
-        const employeeData = {};
-        columns.forEach((col, index) => {
-            employeeData[col] = row[index];
-        });
-        
-        await connection.close();
         
         // Read the template file
         const templatePath = path.join(__dirname, '../../Night Shift Declaration.docx');
@@ -73,25 +75,22 @@ const generateNightShiftDeclaration = async (req, res) => {
         
         // Set the data
         doc.setData({
-            employeeName: employeeData.EMPLOYEE_NAME,
+            employeeName: `${employeeData.FIRST_NAME} ${employeeData.MIDDLE_NAME || ''} ${employeeData.LAST_NAME}`.trim(),
             poornataId: employeeData.POORNATA_ID,
             designation: employeeData.DESIGNATION,
             department: employeeData.DEPARTMENT,
-            location: employeeData.LOCATION,
-            contactNo: employeeData.CONTACT_NO,
-            email: employeeData.MAIL_ID,
+            location: employeeData.CURRENT_ADDRESS,
+            contactNo: employeeData.MOBILE_NO,
+            email: employeeData.OFFICIAL_EMAIL,
             gender: employeeData.GENDER,
             bloodGroup: employeeData.BLOOD_GROUP,
-            joiningDate: new Date(employeeData.JOINING_DATE).toLocaleDateString(),
-            dateOfBirth: new Date(employeeData.DATE_OF_BIRTH).toLocaleDateString(),
+            joiningDate: new Date(employeeData.DOJ_UNIT).toLocaleDateString(),
+            dateOfBirth: new Date(employeeData.DOB).toLocaleDateString(),
             maritalStatus: employeeData.MARITAL_STATUS,
             aadharNo: employeeData.AADHAR_NO,
             panNo: employeeData.PAN_NO,
             bankAccountNo: employeeData.BANK_ACCOUNT_NO,
-            monthlyBasicSalary: employeeData.MONTHLY_BASIC_SALARY,
-            monthlySpecialAllowance: employeeData.MONTHLY_SPECIAL_ALLOWANCE,
-            contributionPercentage: employeeData.CONTRIBUTION_PERCENTAGE,
-            // Add more fields as needed based on your template
+            currentCtc: employeeData.CURRENT_CTC
         });
         
         // Render the document
@@ -102,7 +101,7 @@ const generateNightShiftDeclaration = async (req, res) => {
         
         // Set response headers
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename=Night_Shift_Declaration_${poornataId}.docx`);
+        res.setHeader('Content-Disposition', `attachment; filename=Night_Shift_Declaration_${employeeData.POORNATA_ID}.docx`);
         
         // Send the document
         res.send(buf);
@@ -114,29 +113,14 @@ const generateNightShiftDeclaration = async (req, res) => {
 
 const generatePOSHDocument = async (req, res) => {
     try {
-        const { poornataId } = req.params;
+        const { personal_email } = req.params;
         
-        // Get employee details directly from Oracle
-        const connection = await oracledb.getConnection();
-        const result = await connection.execute(
-            'SELECT * FROM employees WHERE poornata_id = :id',
-            [poornataId]
-        );
+        // Get employee details from database
+        const employeeData = await getEmployeeDetails(personal_email);
         
-        if (result.rows.length === 0) {
-            await connection.close();
+        if (!employeeData) {
             return res.status(404).json({ error: 'Employee not found' });
         }
-        
-        // Convert the row data to an object with column names
-        const row = result.rows[0];
-        const columns = result.metaData.map(col => col.name);
-        const employee = {};
-        columns.forEach((col, index) => {
-            employee[col] = row[index];
-        });
-        
-        await connection.close();
 
         // Read the template file
         const templatePath = path.join(__dirname, '../../29. ABMC728-POSH.docx');
@@ -161,16 +145,16 @@ const generatePOSHDocument = async (req, res) => {
 
         // Set the data using the newer API
         doc.render({
-            employeeName: employee.EMPLOYEE_NAME || '',
-            poornataId: employee.POORNATA_ID || '',
-            designation: employee.DESIGNATION || '',
-            department: employee.DEPARTMENT || '',
-            joiningDate: employee.JOINING_DATE ? new Date(employee.JOINING_DATE).toLocaleDateString() : '',
-            contactNo: employee.CONTACT_NO || '',
-            email: employee.MAIL_ID || '',
-            gender: employee.GENDER || '',
-            bloodGroup: employee.BLOOD_GROUP || '',
-            dateOfBirth: employee.DATE_OF_BIRTH ? new Date(employee.DATE_OF_BIRTH).toLocaleDateString() : ''
+            employeeName: `${employeeData.FIRST_NAME} ${employeeData.MIDDLE_NAME || ''} ${employeeData.LAST_NAME}`.trim(),
+            poornataId: employeeData.POORNATA_ID,
+            designation: employeeData.DESIGNATION,
+            department: employeeData.DEPARTMENT,
+            joiningDate: employeeData.DOJ_UNIT ? new Date(employeeData.DOJ_UNIT).toLocaleDateString() : '',
+            contactNo: employeeData.MOBILE_NO,
+            email: employeeData.OFFICIAL_EMAIL,
+            gender: employeeData.GENDER,
+            bloodGroup: employeeData.BLOOD_GROUP,
+            dateOfBirth: employeeData.DOB ? new Date(employeeData.DOB).toLocaleDateString() : ''
         });
 
         // Generate the document
@@ -178,7 +162,7 @@ const generatePOSHDocument = async (req, res) => {
 
         // Set response headers for file download
         res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-        res.setHeader('Content-Disposition', `attachment; filename=POSH_Declaration_${poornataId}.docx`);
+        res.setHeader('Content-Disposition', `attachment; filename=POSH_Declaration_${employeeData.POORNATA_ID}.docx`);
         
         // Send the document
         res.send(buf);

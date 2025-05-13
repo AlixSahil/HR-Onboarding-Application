@@ -6,19 +6,19 @@ const documentController = require('../controllers/documentController');
 // Get all employees
 router.get('/', employeeController.getAllEmployees);
 
-// Get employee by Poornata ID
-router.get('/:poornataId', employeeController.getEmployeeByPoornataId);
+// Get employee by personal email
+router.get('/:personal_email', employeeController.getEmployeeByPoornataId);
 
 // Create new employee
 router.post('/', employeeController.createEmployee);
 
 // Update employee
-router.put('/:poornataId', employeeController.updateEmployee);
+router.put('/:personal_email', employeeController.updateEmployee);
 
 // Delete employee
-router.delete('/:poornataId', employeeController.deleteEmployee);
+router.delete('/:personal_email', employeeController.deleteEmployee);
 
 // Generate POSH document
-router.get('/:poornataId/generate-posh', documentController.generatePOSHDocument);
+router.get('/:personal_email/generate-posh', documentController.generatePOSHDocument);
 
 module.exports = router; 
