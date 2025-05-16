@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import {
   Container,
   Paper,
@@ -20,6 +19,7 @@ import {
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import moment from 'moment';
 
 const steps = [
   'Personal Details',
@@ -36,53 +36,136 @@ const steps = [
 const EmployeeForm = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [errors, setErrors] = useState({});
+  
+  const formatDateForOracle = (dateStr) => {
+    if (!dateStr) return null;
+    try {
+      // Try parsing with moment using multiple formats
+      const formats = [
+        'YYYY-MM-DD',
+        'DD-MM-YYYY',
+        'MM-DD-YYYY',
+        'YYYY/MM/DD',
+        'DD/MM/YYYY',
+        'MM/DD/YYYY'
+      ];
+      
+      let parsedDate = null;
+      for (const format of formats) {
+        const momentDate = moment(dateStr, format, true);
+        if (momentDate.isValid()) {
+          parsedDate = momentDate;
+          break;
+        }
+      }
+
+      if (!parsedDate) {
+        // Try parsing as ISO string
+        const isoDate = moment(dateStr, moment.ISO_8601, true);
+        if (isoDate.isValid()) {
+          parsedDate = isoDate;
+        }
+      }
+
+      if (!parsedDate || !parsedDate.isValid()) {
+        throw new Error(`Invalid date format: ${dateStr}`);
+      }
+
+      return parsedDate.format('YYYY-MM-DD');
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      throw new Error(`Invalid date format: ${dateStr}`);
+    }
+  };
+
+  const formatNumber = (value, decimals = 2) => {
+    if (!value) return null;
+    return Number(value).toFixed(decimals);
+  };
+
+  const validateEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const validateAadhar = (aadhar) => {
+    return /^\d{12}$/.test(aadhar);
+  };
+
+  const validatePAN = (pan) => {
+    return /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan);
+  };
+
+  const validateMobile = (mobile) => {
+    return /^\d{10}$/.test(mobile);
+  };
+
+  const validateCTC = (ctc) => {
+    return /^\d+(\.\d{1,2})?$/.test(ctc);
+  };
+
   const [formData, setFormData] = useState({
-    basicInfo: {
-      joining_reference_id: '',
-      employee_code: '',
-      first_name: '',
-      last_name: '',
-      dob: '',
-      mobile_no: '',
-      official_email: '',
-      personal_email: '',
-      blood_group: '',
-      gender: '',
-      marital_status: '',
-      religion: '',
-      nationality: '',
-      father_name: '',
-      mother_name: '',
-      current_address: '',
-      permanent_address: '',
-      aadhar_no: '',
-      pan_no: '',
-      bank_name: '',
-      bank_account_no: '',
-      ifsc_code: ''
-    },
+    // Employee table fields
+    personal_email: '',
+    official_email: '',
+    joining_reference_id: '',
+    poornata_id: '',
+    employee_code: '',
+    prefix: '',
+    first_name: '',
+    middle_name: '',
+    last_name: '',
+    fathers_name: '',
+    mothers_name: '',
+    dob: '',
+    gender: '',
+    marital_status: '',
+    blood_group: '',
+    nationality: '',
+    birth_state: '',
+    birth_location: '',
+    religion: '',
+    caste: '',
+    permanent_address: '',
+    current_address: '',
+    quarter_no: '',
+    pan_no: '',
+    aadhar_no: '',
+    bank_name: '',
+    bank_account_no: '',
+    ifsc_code: '',
+    mobile_no: '',
+
+    // ProfessionalDetails table fields
     professionalDetails: {
-      date_of_joining: '',
+      doj_unit: '',
       doj_group: '',
       department: '',
-      new_position: '',
       designation: '',
       job_band: '',
-      loi_issue_date: ''
+      loi_issue_date: '',
+      confirmation_date: '',
+      current_ctc: '',
+      supervisor_name: ''
     },
+
+    // Nominee information
     gpaNominee: {
       name: '',
       relation: '',
       dob: '',
       age: ''
     },
-    mediclaimDependents: [],
     nishchintNominee: {
       name: '',
       relation: '',
       dob: '',
       age: ''
     },
+
+    // Dependents (will be stored in Dependent table)
+    mediclaimDependents: [],
+
+    // Family information
     spouse: {
       name: '',
       dob: '',
@@ -90,66 +173,53 @@ const EmployeeForm = () => {
       marriage_anniversary: ''
     },
     familyMembers: [],
+
+    // Emergency contacts
     emergencyContacts: [],
+
+    // Education (will be stored in Education table)
     education: [],
+
+    // Work History (will be stored in WorkHistory table)
     workHistory: [],
+
+    // Language Skills (will be stored in LanguageSkill table)
     languageSkills: [],
+
+    // Additional Info (will be stored in AdditionalInfo table)
     additionalInfo: {
       hobbies: '',
       total_experience: '',
-      current_unit: '',
-      last_jb_change_date: '',
-      last_designation_change_date: '',
-      dac_attended: 'N',
-      dac_date: ''
+      last_promotion_date: '',
+      performance_ratings: '',
+      special_abilities: ''
     },
+
+    // Performance Rating (will be stored in PerformanceRating table)
     performanceRating: {
       last_year: '',
       second_last_year: '',
       third_last_year: ''
-    },
-    providentFund: {
-      uan_no: '',
-      pf_no: '',
-      eps_no: '',
-      nominee_name: '',
-      nominee_relation: '',
-      nominee_share: ''
-    },
-    gratuityNominee: {
-      name: '',
-      relation: '',
-      share: '',
-      employee_age: '',
-      confirmation_date: ''
-    },
-    superannuation: {
-      name: '',
-      relation: '',
-      share: '',
-      marriage_date: '',
-      confirmation_date: ''
     }
   });
 
   const handleBasicInfoChange = (e) => {
-    setFormData({
-      ...formData,
-      basicInfo: {
-        ...formData.basicInfo,
-        [e.target.name]: e.target.value,
-      },
-    });
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const handleProfessionalDetailsChange = (e) => {
-    setFormData({
-      ...formData,
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
       professionalDetails: {
-        ...formData.professionalDetails,
-        [e.target.name]: e.target.value,
-      },
-    });
+        ...prev.professionalDetails,
+        [name]: value
+      }
+    }));
   };
 
   const addMediclaimDependent = () => {
@@ -194,20 +264,20 @@ const EmployeeForm = () => {
 
   const validateBasicInfo = () => {
     const errors = {};
-    if (!formData.basicInfo.first_name) errors.first_name = 'First name is required';
-    if (!formData.basicInfo.last_name) errors.last_name = 'Last name is required';
-    if (!formData.basicInfo.dob) errors.dob = 'Date of birth is required';
-    if (!formData.basicInfo.mobile_no) errors.mobile_no = 'Mobile number is required';
-    if (!formData.basicInfo.official_email) errors.official_email = 'Official email is required';
-    if (!formData.basicInfo.gender) errors.gender = 'Gender is required';
-    if (!formData.basicInfo.marital_status) errors.marital_status = 'Marital status is required';
-    if (!formData.basicInfo.nationality) errors.nationality = 'Nationality is required';
-    if (!formData.basicInfo.father_name) errors.father_name = 'Father\'s name is required';
-    if (!formData.basicInfo.mother_name) errors.mother_name = 'Mother\'s name is required';
-    if (!formData.basicInfo.current_address) errors.current_address = 'Current address is required';
-    if (!formData.basicInfo.permanent_address) errors.permanent_address = 'Permanent address is required';
-    if (!formData.basicInfo.aadhar_no) errors.aadhar_no = 'Aadhar number is required';
-    if (!formData.basicInfo.pan_no) errors.pan_no = 'PAN number is required';
+    if (!formData.first_name) errors.first_name = 'First name is required';
+    if (!formData.last_name) errors.last_name = 'Last name is required';
+    if (!formData.dob) errors.dob = 'Date of birth is required';
+    if (!formData.mobile_no) errors.mobile_no = 'Mobile number is required';
+    if (!formData.official_email) errors.official_email = 'Official email is required';
+    if (!formData.gender) errors.gender = 'Gender is required';
+    if (!formData.marital_status) errors.marital_status = 'Marital status is required';
+    if (!formData.nationality) errors.nationality = 'Nationality is required';
+    if (!formData.fathers_name) errors.fathers_name = 'Father\'s name is required';
+    if (!formData.mothers_name) errors.mothers_name = 'Mother\'s name is required';
+    if (!formData.permanent_address) errors.permanent_address = 'Permanent address is required';
+    if (!formData.current_address) errors.current_address = 'Current address is required';
+    if (!formData.aadhar_no) errors.aadhar_no = 'Aadhar number is required';
+    if (!formData.pan_no) errors.pan_no = 'PAN number is required';
     
     console.log('Basic Info Validation Errors:', errors);
     return errors;
@@ -215,11 +285,25 @@ const EmployeeForm = () => {
 
   const validateProfessionalDetails = () => {
     const errors = {};
-    if (!formData.professionalDetails.date_of_joining) errors.date_of_joining = 'Date of joining is required';
-    if (!formData.professionalDetails.doj_group) errors.doj_group = 'DOJ group is required';
-    if (!formData.professionalDetails.department) errors.department = 'Department is required';
-    if (!formData.professionalDetails.designation) errors.designation = 'Designation is required';
-    if (!formData.professionalDetails.job_band) errors.job_band = 'Job band is required';
+    console.log('Validating professional details:', formData.professionalDetails);
+    
+    if (!formData.professionalDetails.doj_unit) {
+      errors.doj_unit = 'Date of joining (Unit) is required';
+    }
+    if (!formData.professionalDetails.doj_group) {
+      errors.doj_group = 'Date of joining (Group) is required';
+    }
+    if (!formData.professionalDetails.department) {
+      errors.department = 'Department is required';
+    }
+    if (!formData.professionalDetails.designation) {
+      errors.designation = 'Designation is required';
+    }
+    if (!formData.professionalDetails.job_band) {
+      errors.job_band = 'Job band is required';
+    }
+    
+    console.log('Professional details validation errors:', errors);
     return errors;
   };
 
@@ -262,9 +346,12 @@ const EmployeeForm = () => {
       errors.education = 'At least one education record is required';
     } else {
       formData.education.forEach((edu, index) => {
-        if (!edu.degree) errors[`education_${index}_degree`] = 'Degree is required';
+        if (!edu.qualification) errors[`education_${index}_qualification`] = 'Qualification is required';
         if (!edu.institution) errors[`education_${index}_institution`] = 'Institution is required';
-        if (!edu.year_of_passing) errors[`education_${index}_year_of_passing`] = 'Year of passing is required';
+        if (!edu.major) errors[`education_${index}_major`] = 'Major is required';
+        if (!edu.completion_date) errors[`education_${index}_completion_date`] = 'Completion date is required';
+        if (!edu.percentage) errors[`education_${index}_percentage`] = 'Percentage is required';
+        if (!edu.state) errors[`education_${index}_state`] = 'State is required';
       });
     }
     return errors;
@@ -329,283 +416,336 @@ const EmployeeForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const allErrors = {};
-    for (let i = 0; i < steps.length; i++) {
-      const stepErrors = validateStep(i);
-      Object.assign(allErrors, stepErrors);
-    }
+    console.log('Starting form submission...');
+    
+    try {
+        // Validate all sections
+        const basicInfoErrors = validateBasicInfo();
+        const professionalErrors = validateProfessionalDetails();
+        const nomineeErrors = validateNomineeAndDependents();
+        const familyErrors = validateFamilyInfo();
 
-    if (Object.keys(allErrors).length === 0) {
-      try {
-        // Helper function to format date for Oracle
-        const formatDateForOracle = (dateStr) => {
-          if (!dateStr) return '';
-          // Ensure date is in YYYY-MM-DD format
-          const date = new Date(dateStr);
-          if (isNaN(date.getTime())) return '';
-          return date.toISOString().split('T')[0];
-        };
+        if (Object.keys(basicInfoErrors).length > 0 ||
+            Object.keys(professionalErrors).length > 0 ||
+            Object.keys(nomineeErrors).length > 0 ||
+            Object.keys(familyErrors).length > 0) {
+            setErrors({
+                ...basicInfoErrors,
+                ...professionalErrors,
+                ...nomineeErrors,
+                ...familyErrors
+            });
+            console.error('Validation errors:', {
+                basicInfoErrors,
+                professionalErrors,
+                nomineeErrors,
+                familyErrors
+            });
+            return;
+        }
 
-        // Format the data according to server's expected structure
+        // Format and validate data before submission
         const formattedData = {
-          basicInfo: {
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            poornata_id: formData.basicInfo.employee_code || '',
-            employee_code: formData.basicInfo.employee_code || '',
-            prefix: '',
-            first_name: formData.basicInfo.first_name || '',
-            middle_name: '',
-            last_name: formData.basicInfo.last_name || '',
-            fathers_name: formData.basicInfo.father_name || '',
-            mothers_name: formData.basicInfo.mother_name || '',
-            dob: formatDateForOracle(formData.basicInfo.dob),
-            gender: formData.basicInfo.gender || '',
-            marital_status: formData.basicInfo.marital_status || '',
-            blood_group: formData.basicInfo.blood_group || '',
-            nationality: formData.basicInfo.nationality || '',
-            birth_state: '',
-            birth_location: '',
-            religion: formData.basicInfo.religion || '',
-            caste: '',
-            permanent_address: formData.basicInfo.permanent_address || '',
-            quarter_no: '',
-            qualification: '',
-            pan_no: formData.basicInfo.pan_no || '',
-            aadhar_no: formData.basicInfo.aadhar_no || '',
-            bank_name: formData.basicInfo.bank_name || '',
-            bank_account_no: formData.basicInfo.bank_account_no || '',
-            ifsc_code: formData.basicInfo.ifsc_code || '',
-            mobile_no: formData.basicInfo.mobile_no || '',
-            official_email: formData.basicInfo.official_email || '',
-            personal_email: formData.basicInfo.personal_email || ''
-          },
-          professionalDetails: {
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            doj_unit: formatDateForOracle(formData.professionalDetails.date_of_joining),
-            doj_group: formData.professionalDetails.doj_group || '',
-            department: formData.professionalDetails.department || '',
-            new_position: formData.professionalDetails.new_position || '',
-            new_designation: formData.professionalDetails.designation || '',
-            job_band: formData.professionalDetails.job_band || '',
-            loi_issue_date: formatDateForOracle(formData.professionalDetails.loi_issue_date)
-          },
-          gpaNominee: {
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            name: formData.gpaNominee.name || '',
-            relation: formData.gpaNominee.relation || '',
-            dob: formatDateForOracle(formData.gpaNominee.dob),
-            age: formData.gpaNominee.age || '',
-            contribution_percent: '100'
-          },
-          mediclaimDependents: formData.mediclaimDependents.map(dep => ({
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            name: dep.name || '',
-            gender: dep.gender || '',
-            relation: dep.relation || '',
-            dob: formatDateForOracle(dep.dob),
-            age: dep.age || '',
-            birth_state: dep.birth_state || '',
-            address: dep.address || '',
-            aadhar_no: dep.aadhar_no || '',
-            marital_status: dep.marital_status || ''
-          })),
-          spouse: {
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            name: formData.spouse.name || '',
-            dob: formatDateForOracle(formData.spouse.dob),
-            occupation: formData.spouse.occupation || '',
-            marriage_anniversary: formatDateForOracle(formData.spouse.marriage_anniversary),
-            mobile_no: formData.spouse.mobile_no || ''
-          },
-          emergencyContacts: formData.emergencyContacts.map(contact => ({
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            name: contact.name || '',
-            relation: contact.relation || '',
-            mobile_no: contact.mobile_no || ''
-          })),
-          education: formData.education.map(edu => ({
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            lvl: edu.degree || '',
-            institution: edu.institution || '',
-            major: edu.specialization || '',
-            degree: edu.degree || '',
-            date_acquired: formatDateForOracle(edu.year_of_passing),
-            percentage_grade: edu.percentage || '',
-            state: ''
-          })),
-          workHistory: formData.workHistory.map(work => ({
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            is_in_group: 'N',
-            organization_name: work.company_name || '',
-            job_title: work.designation || '',
-            from_date: formatDateForOracle(work.from_date),
-            to_date: formatDateForOracle(work.to_date),
-            state: '',
-            ending_ctc: ''
-          })),
-          additionalInfo: {
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            hobbies: formData.additionalInfo.hobbies || '',
-            total_experience: formData.additionalInfo.total_experience || '',
-            current_unit: formData.additionalInfo.current_unit || '',
-            last_jb_change_date: formatDateForOracle(formData.additionalInfo.last_jb_change_date),
-            last_designation_change_date: formatDateForOracle(formData.additionalInfo.last_designation_change_date),
-            dac_attended: formData.additionalInfo.dac_attended || 'N',
-            dac_date: formatDateForOracle(formData.additionalInfo.dac_date)
-          },
-          performanceRating: {
-            joining_reference_id: formData.basicInfo.joining_reference_id || '',
-            last_year: formData.performanceRating.last_year || '',
-            second_last_year: formData.performanceRating.second_last_year || '',
-            third_last_year: formData.performanceRating.third_last_year || ''
-          }
+            basicInfo: {
+                personal_email: formData.personal_email,
+                official_email: formData.official_email,
+                joining_reference_id: formData.joining_reference_id,
+                poornata_id: formData.poornata_id,
+                employee_code: formData.employee_code,
+                prefix: formData.prefix,
+                first_name: formData.first_name,
+                middle_name: formData.middle_name,
+                last_name: formData.last_name,
+                fathers_name: formData.fathers_name,
+                mothers_name: formData.mothers_name,
+                dob: formatDateForOracle(formData.dob),
+                gender: formData.gender,
+                marital_status: formData.marital_status,
+                blood_group: formData.blood_group,
+                nationality: formData.nationality,
+                birth_state: formData.birth_state,
+                birth_location: formData.birth_location,
+                religion: formData.religion,
+                caste: formData.caste,
+                permanent_address: formData.permanent_address,
+                current_address: formData.current_address,
+                quarter_no: formData.quarter_no,
+                pan_no: formData.pan_no,
+                aadhar_no: formData.aadhar_no,
+                bank_name: formData.bank_name,
+                bank_account_no: formData.bank_account_no,
+                ifsc_code: formData.ifsc_code,
+                mobile_no: formData.mobile_no
+            },
+            professionalDetails: {
+                doj_unit: formatDateForOracle(formData.professionalDetails.doj_unit),
+                doj_group: formatDateForOracle(formData.professionalDetails.doj_group),
+                department: formData.professionalDetails.department,
+                designation: formData.professionalDetails.designation,
+                job_band: formData.professionalDetails.job_band,
+                loi_issue_date: formatDateForOracle(formData.professionalDetails.loi_issue_date),
+                confirmation_date: formatDateForOracle(formData.professionalDetails.confirmation_date),
+                current_ctc: formatNumber(formData.professionalDetails.current_ctc),
+                supervisor_name: formData.professionalDetails.supervisor_name
+            },
+            dependents: [
+                // GPA Nominee
+                {
+                    dependent_type: 'NOMINEE',
+                    name: formData.gpaNominee.name,
+                    relation: formData.gpaNominee.relation,
+                    dob: formatDateForOracle(formData.gpaNominee.dob),
+                    age: formatNumber(formData.gpaNominee.age, 0),
+                    is_primary: 'Y'
+                },
+                // Nishchint Nominee
+                {
+                    dependent_type: 'NOMINEE',
+                    name: formData.nishchintNominee.name,
+                    relation: formData.nishchintNominee.relation,
+                    dob: formatDateForOracle(formData.nishchintNominee.dob),
+                    age: formatNumber(formData.nishchintNominee.age, 0),
+                    is_primary: 'N'
+                },
+                // Mediclaim Dependents
+                ...formData.mediclaimDependents.map(dep => ({
+                    dependent_type: 'MEDICLAIM',
+                    name: dep.name,
+                    relation: dep.relation,
+                    dob: formatDateForOracle(dep.dob),
+                    age: formatNumber(dep.age, 0),
+                    is_primary: 'N'
+                }))
+            ],
+            education: formData.education.map(edu => ({
+                qualification: edu.qualification,
+                institution: edu.institution,
+                major: edu.major,
+                completion_date: formatDateForOracle(edu.completion_date),
+                percentage: formatNumber(edu.percentage),
+                state: edu.state
+            })),
+            workHistory: formData.workHistory.map(work => ({
+                is_in_group: work.is_in_group,
+                organization: work.organization,
+                job_title: work.job_title,
+                start_date: formatDateForOracle(work.start_date),
+                end_date: formatDateForOracle(work.end_date),
+                location: work.location,
+                ctc: formatNumber(work.ctc)
+            })),
+            languageSkills: formData.languageSkills.map(skill => ({
+                language: skill.language,
+                speak_level: skill.speak_level,
+                read_level: skill.read_level,
+                write_level: skill.write_level
+            })),
+            additionalInfo: {
+                hobbies: formData.additionalInfo.hobbies,
+                total_experience: formatNumber(formData.additionalInfo.total_experience),
+                last_promotion_date: formatDateForOracle(formData.additionalInfo.last_promotion_date),
+                special_abilities: formData.additionalInfo.special_abilities
+            },
+            performanceRating: {
+                last_year: formData.performanceRating.last_year,
+                second_last_year: formData.performanceRating.second_last_year,
+                third_last_year: formData.performanceRating.third_last_year
+            }
         };
 
-        console.log('Submitting data:', formattedData);
-        const response = await axios.post('http://localhost:5000/api/employees', formattedData);
-        console.log('Employee created successfully:', response.data);
-        
-        // Show success message
-        alert('Employee created successfully!');
-        // Reset form and go back to first step
+        // Validate formatted data
+        if (!validateEmail(formattedData.basicInfo.personal_email)) {
+            throw new Error('Invalid personal email format');
+        }
+        if (!validateEmail(formattedData.basicInfo.official_email)) {
+            throw new Error('Invalid official email format');
+        }
+        if (!validateAadhar(formattedData.basicInfo.aadhar_no)) {
+            throw new Error('Aadhar number must be 12 digits');
+        }
+        if (formattedData.basicInfo.pan_no && !validatePAN(formattedData.basicInfo.pan_no)) {
+            throw new Error('Invalid PAN number format');
+        }
+        if (!validateMobile(formattedData.basicInfo.mobile_no)) {
+            throw new Error('Mobile number must be 10 digits');
+        }
+        if (formattedData.professionalDetails.current_ctc && 
+            !validateCTC(formattedData.professionalDetails.current_ctc)) {
+            throw new Error('Invalid CTC format');
+        }
+
+        console.log('Submitting formatted data:', formattedData);
+
+        const response = await fetch('http://localhost:5000/api/employees', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(formattedData)
+        });
+
+        const data = await response.json();
+        console.log('Server response:', data);
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to create employee');
+        }
+
+        // Reset form and show success message
         setFormData({
-          basicInfo: {
-            joining_reference_id: '',
-            employee_code: '',
-            first_name: '',
-            last_name: '',
-            dob: '',
-            mobile_no: '',
-            official_email: '',
             personal_email: '',
-            blood_group: '',
+            official_email: '',
+            joining_reference_id: '',
+            poornata_id: '',
+            employee_code: '',
+            prefix: '',
+            first_name: '',
+            middle_name: '',
+            last_name: '',
+            fathers_name: '',
+            mothers_name: '',
+            dob: '',
             gender: '',
             marital_status: '',
-            religion: '',
+            blood_group: '',
             nationality: '',
-            father_name: '',
-            mother_name: '',
-            current_address: '',
+            birth_state: '',
+            birth_location: '',
+            religion: '',
+            caste: '',
             permanent_address: '',
-            aadhar_no: '',
+            current_address: '',
+            quarter_no: '',
             pan_no: '',
+            aadhar_no: '',
             bank_name: '',
             bank_account_no: '',
-            ifsc_code: ''
-          },
-          professionalDetails: {
-            date_of_joining: '',
-            doj_group: '',
-            department: '',
-            new_position: '',
-            designation: '',
-            job_band: '',
-            loi_issue_date: ''
-          },
-          gpaNominee: {
-            name: '',
-            relation: '',
-            dob: '',
-            age: ''
-          },
-          mediclaimDependents: [],
-          nishchintNominee: {
-            name: '',
-            relation: '',
-            dob: '',
-            age: ''
-          },
-          spouse: {
-            name: '',
-            dob: '',
-            occupation: '',
-            marriage_anniversary: ''
-          },
-          familyMembers: [],
-          emergencyContacts: [],
-          education: [],
-          workHistory: [],
-          languageSkills: [],
-          additionalInfo: {
-            hobbies: '',
-            total_experience: '',
-            current_unit: '',
-            last_jb_change_date: '',
-            last_designation_change_date: '',
-            dac_attended: 'N',
-            dac_date: ''
-          },
-          performanceRating: {
-            last_year: '',
-            second_last_year: '',
-            third_last_year: ''
-          }
+            ifsc_code: '',
+            mobile_no: '',
+            professionalDetails: {
+                doj_unit: '',
+                doj_group: '',
+                department: '',
+                designation: '',
+                job_band: '',
+                loi_issue_date: '',
+                confirmation_date: '',
+                current_ctc: '',
+                supervisor_name: ''
+            },
+            dependents: [],
+            education: [],
+            workHistory: [],
+            languageSkills: [],
+            additionalInfo: {
+                hobbies: '',
+                total_experience: '',
+                last_promotion_date: '',
+                special_abilities: ''
+            },
+            performanceRating: {
+                last_year: '',
+                second_last_year: '',
+                third_last_year: ''
+            }
         });
         setActiveStep(0);
         setErrors({});
-      } catch (error) {
-        console.error('Error creating employee:', error);
-        if (error.response) {
-          console.error('Error response:', error.response.data);
-          alert(`Error: ${error.response.data.error || 'Failed to create employee'}`);
-        } else if (error.request) {
-          console.error('No response received:', error.request);
-          alert('Error: No response from server. Please try again.');
-        } else {
-          console.error('Error setting up request:', error.message);
-          alert('Error: Failed to submit form. Please try again.');
-        }
-      }
-    } else {
-      setErrors(allErrors);
-      // Scroll to the first error
-      const firstErrorField = document.querySelector('[error="true"]');
-      if (firstErrorField) {
-        firstErrorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
+        alert('Employee created successfully!');
+    } catch (error) {
+        console.error('Form submission error:', error);
+        setErrors(prev => ({
+            ...prev,
+            submit: error.message || 'Failed to create employee'
+        }));
     }
   };
 
   const renderBasicInfo = () => (
     <Grid container spacing={3}>
-      {/* Basic Identification */}
       <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Basic Identification</Typography>
+        <Typography variant="h6" gutterBottom>Basic Information</Typography>
       </Grid>
-      <Grid item xs={12} md={3}>
+      
+      {/* Employee Identification */}
+      <Grid item xs={12} md={4}>
         <TextField
           fullWidth
+          required
+          label="Personal Email"
+          name="personal_email"
+          value={formData.personal_email}
+          onChange={handleBasicInfoChange}
+          error={!!errors.personal_email}
+          helperText={errors.personal_email}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
+          required
+          label="Official Email"
+          name="official_email"
+          value={formData.official_email}
+          onChange={handleBasicInfoChange}
+          error={!!errors.official_email}
+          helperText={errors.official_email}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
+          required
           label="Joining Reference ID"
           name="joining_reference_id"
-          value={formData.basicInfo.joining_reference_id || ''}
+          value={formData.joining_reference_id}
           onChange={handleBasicInfoChange}
           error={!!errors.joining_reference_id}
           helperText={errors.joining_reference_id}
         />
       </Grid>
-      <Grid item xs={12} md={3}>
+      <Grid item xs={12} md={4}>
         <TextField
           fullWidth
+          required
+          label="Poornata ID"
+          name="poornata_id"
+          value={formData.poornata_id}
+          onChange={handleBasicInfoChange}
+          error={!!errors.poornata_id}
+          helperText={errors.poornata_id}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
+          required
           label="Employee Code"
           name="employee_code"
-          value={formData.basicInfo.employee_code || ''}
+          value={formData.employee_code}
           onChange={handleBasicInfoChange}
           error={!!errors.employee_code}
           helperText={errors.employee_code}
         />
       </Grid>
-
-      {/* Name */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Name</Typography>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
+          label="Prefix"
+          name="prefix"
+          value={formData.prefix}
+          onChange={handleBasicInfoChange}
+        />
       </Grid>
+
+      {/* Name Information */}
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
           required
           label="First Name"
           name="first_name"
-          value={formData.basicInfo.first_name || ''}
+          value={formData.first_name}
           onChange={handleBasicInfoChange}
           error={!!errors.first_name}
           helperText={errors.first_name}
@@ -614,20 +754,46 @@ const EmployeeForm = () => {
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
+          label="Middle Name"
+          name="middle_name"
+          value={formData.middle_name}
+          onChange={handleBasicInfoChange}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
           required
           label="Last Name"
           name="last_name"
-          value={formData.basicInfo.last_name || ''}
+          value={formData.last_name}
           onChange={handleBasicInfoChange}
           error={!!errors.last_name}
           helperText={errors.last_name}
         />
       </Grid>
 
-      {/* Personal Info */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Personal Info</Typography>
+      {/* Parent Information */}
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Father's Name"
+          name="fathers_name"
+          value={formData.fathers_name}
+          onChange={handleBasicInfoChange}
+        />
       </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Mother's Name"
+          name="mothers_name"
+          value={formData.mothers_name}
+          onChange={handleBasicInfoChange}
+        />
+      </Grid>
+
+      {/* Personal Information */}
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
@@ -635,7 +801,7 @@ const EmployeeForm = () => {
           type="date"
           label="Date of Birth"
           name="dob"
-          value={formData.basicInfo.dob || ''}
+          value={formData.dob}
           onChange={handleBasicInfoChange}
           InputLabelProps={{ shrink: true }}
           error={!!errors.dob}
@@ -647,13 +813,13 @@ const EmployeeForm = () => {
           <InputLabel>Gender</InputLabel>
           <Select
             name="gender"
-            value={formData.basicInfo.gender || ''}
+            value={formData.gender}
             onChange={handleBasicInfoChange}
             label="Gender"
           >
-            <MenuItem value="M">Male</MenuItem>
-            <MenuItem value="F">Female</MenuItem>
-            <MenuItem value="O">Other</MenuItem>
+            <MenuItem value="Male">Male</MenuItem>
+            <MenuItem value="Female">Female</MenuItem>
+            <MenuItem value="Other">Other</MenuItem>
           </Select>
           {errors.gender && <FormHelperText>{errors.gender}</FormHelperText>}
         </FormControl>
@@ -663,113 +829,76 @@ const EmployeeForm = () => {
           <InputLabel>Marital Status</InputLabel>
           <Select
             name="marital_status"
-            value={formData.basicInfo.marital_status || ''}
+            value={formData.marital_status}
             onChange={handleBasicInfoChange}
             label="Marital Status"
           >
-            <MenuItem value="S">Single</MenuItem>
-            <MenuItem value="M">Married</MenuItem>
-            <MenuItem value="D">Divorced</MenuItem>
-            <MenuItem value="W">Widowed</MenuItem>
+            <MenuItem value="Single">Single</MenuItem>
+            <MenuItem value="Married">Married</MenuItem>
+            <MenuItem value="Divorced">Divorced</MenuItem>
+            <MenuItem value="Widowed">Widowed</MenuItem>
           </Select>
           {errors.marital_status && <FormHelperText>{errors.marital_status}</FormHelperText>}
         </FormControl>
       </Grid>
+
+      {/* Additional Personal Information */}
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          required
+          label="Blood Group"
+          name="blood_group"
+          value={formData.blood_group}
+          onChange={handleBasicInfoChange}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
           label="Nationality"
           name="nationality"
-          value={formData.basicInfo.nationality || ''}
+          value={formData.nationality}
           onChange={handleBasicInfoChange}
-          error={!!errors.nationality}
-          helperText={errors.nationality}
         />
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          required
-          label="Father's Name"
-          name="father_name"
-          value={formData.basicInfo.father_name || ''}
+          label="Birth State"
+          name="birth_state"
+          value={formData.birth_state}
           onChange={handleBasicInfoChange}
-          error={!!errors.father_name}
-          helperText={errors.father_name}
         />
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          required
-          label="Mother's Name"
-          name="mother_name"
-          value={formData.basicInfo.mother_name || ''}
+          label="Birth Location"
+          name="birth_location"
+          value={formData.birth_location}
           onChange={handleBasicInfoChange}
-          error={!!errors.mother_name}
-          helperText={errors.mother_name}
-        />
-      </Grid>
-
-      {/* Contact Details */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Contact Details</Typography>
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          required
-          label="Mobile Number"
-          name="mobile_no"
-          value={formData.basicInfo.mobile_no}
-          onChange={handleBasicInfoChange}
-          error={!!errors.mobile_no}
-          helperText={errors.mobile_no}
         />
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          required
-          label="Official Email"
-          name="official_email"
-          type="email"
-          value={formData.basicInfo.official_email}
+          label="Religion"
+          name="religion"
+          value={formData.religion}
           onChange={handleBasicInfoChange}
-          error={!!errors.official_email}
-          helperText={errors.official_email}
         />
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          label="Personal Email"
-          name="personal_email"
-          type="email"
-          value={formData.basicInfo.personal_email}
+          label="Caste"
+          name="caste"
+          value={formData.caste}
           onChange={handleBasicInfoChange}
         />
       </Grid>
 
-      {/* Address */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Address</Typography>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          required
-          label="Current Address"
-          name="current_address"
-          multiline
-          rows={3}
-          value={formData.basicInfo.current_address}
-          onChange={handleBasicInfoChange}
-          error={!!errors.current_address}
-          helperText={errors.current_address}
-        />
-      </Grid>
+      {/* Address Information */}
       <Grid item xs={12} md={6}>
         <TextField
           fullWidth
@@ -778,36 +907,41 @@ const EmployeeForm = () => {
           name="permanent_address"
           multiline
           rows={3}
-          value={formData.basicInfo.permanent_address}
+          value={formData.permanent_address}
           onChange={handleBasicInfoChange}
           error={!!errors.permanent_address}
           helperText={errors.permanent_address}
         />
       </Grid>
-
-      {/* ID & Bank Details */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>ID & Bank Details</Typography>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Current Address"
+          name="current_address"
+          multiline
+          rows={3}
+          value={formData.current_address}
+          onChange={handleBasicInfoChange}
+        />
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          required
-          label="Aadhar Number"
-          name="aadhar_no"
-          value={formData.basicInfo.aadhar_no}
+          label="Quarter No"
+          name="quarter_no"
+          value={formData.quarter_no}
           onChange={handleBasicInfoChange}
-          error={!!errors.aadhar_no}
-          helperText={errors.aadhar_no}
         />
       </Grid>
+
+      {/* ID & Bank Details */}
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
           required
           label="PAN Number"
           name="pan_no"
-          value={formData.basicInfo.pan_no}
+          value={formData.pan_no}
           onChange={handleBasicInfoChange}
           error={!!errors.pan_no}
           helperText={errors.pan_no}
@@ -816,9 +950,21 @@ const EmployeeForm = () => {
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
+          required
+          label="Aadhar Number"
+          name="aadhar_no"
+          value={formData.aadhar_no}
+          onChange={handleBasicInfoChange}
+          error={!!errors.aadhar_no}
+          helperText={errors.aadhar_no}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
           label="Bank Name"
           name="bank_name"
-          value={formData.basicInfo.bank_name}
+          value={formData.bank_name}
           onChange={handleBasicInfoChange}
         />
       </Grid>
@@ -827,7 +973,7 @@ const EmployeeForm = () => {
           fullWidth
           label="Bank Account Number"
           name="bank_account_no"
-          value={formData.basicInfo.bank_account_no}
+          value={formData.bank_account_no}
           onChange={handleBasicInfoChange}
         />
       </Grid>
@@ -836,8 +982,20 @@ const EmployeeForm = () => {
           fullWidth
           label="IFSC Code"
           name="ifsc_code"
-          value={formData.basicInfo.ifsc_code}
+          value={formData.ifsc_code}
           onChange={handleBasicInfoChange}
+        />
+      </Grid>
+      <Grid item xs={12} md={4}>
+        <TextField
+          fullWidth
+          required
+          label="Mobile Number"
+          name="mobile_no"
+          value={formData.mobile_no}
+          onChange={handleBasicInfoChange}
+          error={!!errors.mobile_no}
+          helperText={errors.mobile_no}
         />
       </Grid>
     </Grid>
@@ -853,25 +1011,24 @@ const EmployeeForm = () => {
           fullWidth
           required
           type="date"
-          label="Date of Joining"
-          name="date_of_joining"
-          value={formData.professionalDetails.date_of_joining}
+          label="Date of Joining (Unit)"
+          name="doj_unit"
+          value={formData.professionalDetails.doj_unit}
           onChange={handleProfessionalDetailsChange}
           InputLabelProps={{ shrink: true }}
-          error={!!errors.date_of_joining}
-          helperText={errors.date_of_joining}
+          error={!!errors.doj_unit}
+          helperText={errors.doj_unit}
         />
       </Grid>
       <Grid item xs={12} md={6}>
         <TextField
           fullWidth
-          required
-          label="DOJ Group"
+          type="date"
+          label="Date of Joining (Group)"
           name="doj_group"
           value={formData.professionalDetails.doj_group}
           onChange={handleProfessionalDetailsChange}
-          error={!!errors.doj_group}
-          helperText={errors.doj_group}
+          InputLabelProps={{ shrink: true }}
         />
       </Grid>
       <Grid item xs={12} md={6}>
@@ -889,15 +1046,6 @@ const EmployeeForm = () => {
       <Grid item xs={12} md={6}>
         <TextField
           fullWidth
-          label="New Position"
-          name="new_position"
-          value={formData.professionalDetails.new_position}
-          onChange={handleProfessionalDetailsChange}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
           required
           label="Designation"
           name="designation"
@@ -910,13 +1058,10 @@ const EmployeeForm = () => {
       <Grid item xs={12} md={6}>
         <TextField
           fullWidth
-          required
           label="Job Band"
           name="job_band"
           value={formData.professionalDetails.job_band}
           onChange={handleProfessionalDetailsChange}
-          error={!!errors.job_band}
-          helperText={errors.job_band}
         />
       </Grid>
       <Grid item xs={12} md={6}>
@@ -928,6 +1073,36 @@ const EmployeeForm = () => {
           value={formData.professionalDetails.loi_issue_date}
           onChange={handleProfessionalDetailsChange}
           InputLabelProps={{ shrink: true }}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          type="date"
+          label="Confirmation Date"
+          name="confirmation_date"
+          value={formData.professionalDetails.confirmation_date}
+          onChange={handleProfessionalDetailsChange}
+          InputLabelProps={{ shrink: true }}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Current CTC"
+          name="current_ctc"
+          type="number"
+          value={formData.professionalDetails.current_ctc}
+          onChange={handleProfessionalDetailsChange}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Supervisor Name"
+          name="supervisor_name"
+          value={formData.professionalDetails.supervisor_name}
+          onChange={handleProfessionalDetailsChange}
         />
       </Grid>
     </Grid>
@@ -1401,9 +1576,8 @@ const EmployeeForm = () => {
     </Grid>
   );
 
-  const renderEducationAndWorkHistory = () => (
+  const renderEducation = () => (
     <Grid container spacing={3}>
-      {/* Education History */}
       <Grid item xs={12}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6">Education History</Typography>
@@ -1412,11 +1586,12 @@ const EmployeeForm = () => {
             onClick={() => setFormData({
               ...formData,
               education: [...formData.education, {
-                degree: '',
+                qualification: '',
                 institution: '',
-                year_of_passing: '',
+                major: '',
+                completion_date: '',
                 percentage: '',
-                specialization: ''
+                state: ''
               }]
             })}
             variant="contained"
@@ -1440,21 +1615,31 @@ const EmployeeForm = () => {
               </IconButton>
             </Box>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  fullWidth
-                  label="Degree"
-                  value={edu.degree}
-                  onChange={(e) => {
-                    const updatedEducation = [...formData.education];
-                    updatedEducation[index] = { ...edu, degree: e.target.value };
-                    setFormData({ ...formData, education: updatedEducation });
-                  }}
-                />
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth required>
+                  <InputLabel>Qualification</InputLabel>
+                  <Select
+                    value={edu.qualification}
+                    label="Qualification"
+                    onChange={(e) => {
+                      const updatedEducation = [...formData.education];
+                      updatedEducation[index] = { ...edu, qualification: e.target.value };
+                      setFormData({ ...formData, education: updatedEducation });
+                    }}
+                  >
+                    <MenuItem value="10th">10th</MenuItem>
+                    <MenuItem value="12th">12th</MenuItem>
+                    <MenuItem value="Diploma">Diploma</MenuItem>
+                    <MenuItem value="Graduate">Graduate</MenuItem>
+                    <MenuItem value="Post Graduate">Post Graduate</MenuItem>
+                    <MenuItem value="PhD">PhD</MenuItem>
+                  </Select>
+                </FormControl>
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
+                  required
                   label="Institution"
                   value={edu.institution}
                   onChange={(e) => {
@@ -1464,21 +1649,36 @@ const EmployeeForm = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Year of Passing"
-                  value={edu.year_of_passing}
+                  label="Major"
+                  value={edu.major}
                   onChange={(e) => {
                     const updatedEducation = [...formData.education];
-                    updatedEducation[index] = { ...edu, year_of_passing: e.target.value };
+                    updatedEducation[index] = { ...edu, major: e.target.value };
                     setFormData({ ...formData, education: updatedEducation });
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
+                  type="date"
+                  label="Completion Date"
+                  value={edu.completion_date}
+                  onChange={(e) => {
+                    const updatedEducation = [...formData.education];
+                    updatedEducation[index] = { ...edu, completion_date: e.target.value };
+                    setFormData({ ...formData, education: updatedEducation });
+                  }}
+                  InputLabelProps={{ shrink: true }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  type="number"
                   label="Percentage"
                   value={edu.percentage}
                   onChange={(e) => {
@@ -1488,14 +1688,14 @@ const EmployeeForm = () => {
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Specialization"
-                  value={edu.specialization}
+                  label="State"
+                  value={edu.state}
                   onChange={(e) => {
                     const updatedEducation = [...formData.education];
-                    updatedEducation[index] = { ...edu, specialization: e.target.value };
+                    updatedEducation[index] = { ...edu, state: e.target.value };
                     setFormData({ ...formData, education: updatedEducation });
                   }}
                 />
@@ -1504,8 +1704,11 @@ const EmployeeForm = () => {
           </Paper>
         ))}
       </Grid>
+    </Grid>
+  );
 
-      {/* Work History */}
+  const renderWorkHistory = () => (
+    <Grid container spacing={3}>
       <Grid item xs={12}>
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Typography variant="h6">Work History</Typography>
@@ -1514,11 +1717,13 @@ const EmployeeForm = () => {
             onClick={() => setFormData({
               ...formData,
               workHistory: [...formData.workHistory, {
-                company_name: '',
-                designation: '',
-                from_date: '',
-                to_date: '',
-                reason_for_leaving: ''
+                is_in_group: 'N',
+                organization: '',
+                job_title: '',
+                start_date: '',
+                end_date: '',
+                location: '',
+                ctc: ''
               }]
             })}
             variant="contained"
@@ -1542,68 +1747,98 @@ const EmployeeForm = () => {
               </IconButton>
             </Box>
             <Grid container spacing={2}>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
+                <FormControl fullWidth>
+                  <InputLabel>Is In Group</InputLabel>
+                  <Select
+                    value={work.is_in_group}
+                    label="Is In Group"
+                    onChange={(e) => {
+                      const updatedWorkHistory = [...formData.workHistory];
+                      updatedWorkHistory[index] = { ...work, is_in_group: e.target.value };
+                      setFormData({ ...formData, workHistory: updatedWorkHistory });
+                    }}
+                  >
+                    <MenuItem value="Y">Yes</MenuItem>
+                    <MenuItem value="N">No</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Company Name"
-                  value={work.company_name}
+                  required
+                  label="Organization"
+                  value={work.organization}
                   onChange={(e) => {
                     const updatedWorkHistory = [...formData.workHistory];
-                    updatedWorkHistory[index] = { ...work, company_name: e.target.value };
+                    updatedWorkHistory[index] = { ...work, organization: e.target.value };
                     setFormData({ ...formData, workHistory: updatedWorkHistory });
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  label="Designation"
-                  value={work.designation}
+                  label="Job Title"
+                  value={work.job_title}
                   onChange={(e) => {
                     const updatedWorkHistory = [...formData.workHistory];
-                    updatedWorkHistory[index] = { ...work, designation: e.target.value };
+                    updatedWorkHistory[index] = { ...work, job_title: e.target.value };
                     setFormData({ ...formData, workHistory: updatedWorkHistory });
                   }}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
+                  required
                   type="date"
-                  label="From Date"
-                  value={work.from_date}
+                  label="Start Date"
+                  value={work.start_date}
                   onChange={(e) => {
                     const updatedWorkHistory = [...formData.workHistory];
-                    updatedWorkHistory[index] = { ...work, from_date: e.target.value };
+                    updatedWorkHistory[index] = { ...work, start_date: e.target.value };
                     setFormData({ ...formData, workHistory: updatedWorkHistory });
                   }}
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
                   type="date"
-                  label="To Date"
-                  value={work.to_date}
+                  label="End Date"
+                  value={work.end_date}
                   onChange={(e) => {
                     const updatedWorkHistory = [...formData.workHistory];
-                    updatedWorkHistory[index] = { ...work, to_date: e.target.value };
+                    updatedWorkHistory[index] = { ...work, end_date: e.target.value };
                     setFormData({ ...formData, workHistory: updatedWorkHistory });
                   }}
                   InputLabelProps={{ shrink: true }}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid item xs={12} md={4}>
                 <TextField
                   fullWidth
-                  multiline
-                  rows={2}
-                  label="Reason for Leaving"
-                  value={work.reason_for_leaving}
+                  label="Location"
+                  value={work.location}
                   onChange={(e) => {
                     const updatedWorkHistory = [...formData.workHistory];
-                    updatedWorkHistory[index] = { ...work, reason_for_leaving: e.target.value };
+                    updatedWorkHistory[index] = { ...work, location: e.target.value };
+                    setFormData({ ...formData, workHistory: updatedWorkHistory });
+                  }}
+                />
+              </Grid>
+              <Grid item xs={12} md={4}>
+                <TextField
+                  fullWidth
+                  type="number"
+                  label="CTC"
+                  value={work.ctc}
+                  onChange={(e) => {
+                    const updatedWorkHistory = [...formData.workHistory];
+                    updatedWorkHistory[index] = { ...work, ctc: e.target.value };
                     setFormData({ ...formData, workHistory: updatedWorkHistory });
                   }}
                 />
@@ -1611,104 +1846,6 @@ const EmployeeForm = () => {
             </Grid>
           </Paper>
         ))}
-      </Grid>
-    </Grid>
-  );
-
-  const renderAdditionalInfo = () => (
-    <Grid container spacing={3}>
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Additional Information</Typography>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          multiline
-          rows={4}
-          label="Hobbies"
-          value={formData.additionalInfo.hobbies}
-          onChange={(e) => setFormData({
-            ...formData,
-            additionalInfo: { ...formData.additionalInfo, hobbies: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          label="Total Experience"
-          value={formData.additionalInfo.total_experience}
-          onChange={(e) => setFormData({
-            ...formData,
-            additionalInfo: { ...formData.additionalInfo, total_experience: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          label="Current Unit"
-          value={formData.additionalInfo.current_unit}
-          onChange={(e) => setFormData({
-            ...formData,
-            additionalInfo: { ...formData.additionalInfo, current_unit: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          type="date"
-          label="Last Job Band Change Date"
-          value={formData.additionalInfo.last_jb_change_date}
-          onChange={(e) => setFormData({
-            ...formData,
-            additionalInfo: { ...formData.additionalInfo, last_jb_change_date: e.target.value }
-          })}
-          InputLabelProps={{ shrink: true }}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          type="date"
-          label="Last Designation Change Date"
-          value={formData.additionalInfo.last_designation_change_date}
-          onChange={(e) => setFormData({
-            ...formData,
-            additionalInfo: { ...formData.additionalInfo, last_designation_change_date: e.target.value }
-          })}
-          InputLabelProps={{ shrink: true }}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <FormControl fullWidth>
-          <InputLabel>DAC Attended</InputLabel>
-          <Select
-            value={formData.additionalInfo.dac_attended}
-            label="DAC Attended"
-            onChange={(e) => setFormData({
-              ...formData,
-              additionalInfo: { ...formData.additionalInfo, dac_attended: e.target.value }
-            })}
-          >
-            <MenuItem value="Y">Yes</MenuItem>
-            <MenuItem value="N">No</MenuItem>
-          </Select>
-        </FormControl>
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          type="date"
-          label="DAC Date"
-          value={formData.additionalInfo.dac_date}
-          onChange={(e) => setFormData({
-            ...formData,
-            additionalInfo: { ...formData.additionalInfo, dac_date: e.target.value }
-          })}
-          InputLabelProps={{ shrink: true }}
-        />
       </Grid>
     </Grid>
   );
@@ -1753,6 +1890,7 @@ const EmployeeForm = () => {
               <Grid item xs={12} md={3}>
                 <TextField
                   fullWidth
+                  required
                   label="Language"
                   value={skill.language}
                   onChange={(e) => {
@@ -1763,7 +1901,7 @@ const EmployeeForm = () => {
                 />
               </Grid>
               <Grid item xs={12} md={3}>
-                <FormControl fullWidth>
+                <FormControl fullWidth required>
                   <InputLabel>Speak Level</InputLabel>
                   <Select
                     value={skill.speak_level}
@@ -1776,13 +1914,12 @@ const EmployeeForm = () => {
                   >
                     <MenuItem value="Basic">Basic</MenuItem>
                     <MenuItem value="Intermediate">Intermediate</MenuItem>
-                    <MenuItem value="Advanced">Advanced</MenuItem>
-                    <MenuItem value="Native">Native</MenuItem>
+                    <MenuItem value="Fluent">Fluent</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
               <Grid item xs={12} md={3}>
-                <FormControl fullWidth>
+                <FormControl fullWidth required>
                   <InputLabel>Read Level</InputLabel>
                   <Select
                     value={skill.read_level}
@@ -1795,13 +1932,12 @@ const EmployeeForm = () => {
                   >
                     <MenuItem value="Basic">Basic</MenuItem>
                     <MenuItem value="Intermediate">Intermediate</MenuItem>
-                    <MenuItem value="Advanced">Advanced</MenuItem>
-                    <MenuItem value="Native">Native</MenuItem>
+                    <MenuItem value="Fluent">Fluent</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
               <Grid item xs={12} md={3}>
-                <FormControl fullWidth>
+                <FormControl fullWidth required>
                   <InputLabel>Write Level</InputLabel>
                   <Select
                     value={skill.write_level}
@@ -1814,8 +1950,7 @@ const EmployeeForm = () => {
                   >
                     <MenuItem value="Basic">Basic</MenuItem>
                     <MenuItem value="Intermediate">Intermediate</MenuItem>
-                    <MenuItem value="Advanced">Advanced</MenuItem>
-                    <MenuItem value="Native">Native</MenuItem>
+                    <MenuItem value="Fluent">Fluent</MenuItem>
                   </Select>
                 </FormControl>
               </Grid>
@@ -1826,240 +1961,142 @@ const EmployeeForm = () => {
     </Grid>
   );
 
-  const renderPerformanceAndBenefits = () => (
+  const renderAdditionalInfo = () => (
     <Grid container spacing={3}>
-      {/* Performance Rating */}
       <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Performance Rating</Typography>
+        <Typography variant="h6" gutterBottom>Additional Information</Typography>
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          multiline
+          rows={3}
+          label="Hobbies"
+          name="hobbies"
+          value={formData.additionalInfo.hobbies}
+          onChange={(e) => setFormData({
+            ...formData,
+            additionalInfo: {
+              ...formData.additionalInfo,
+              hobbies: e.target.value
+            }
+          })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Total Experience"
+          name="total_experience"
+          value={formData.additionalInfo.total_experience}
+          onChange={(e) => setFormData({
+            ...formData,
+            additionalInfo: {
+              ...formData.additionalInfo,
+              total_experience: e.target.value
+            }
+          })}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          type="date"
+          label="Last Promotion Date"
+          name="last_promotion_date"
+          value={formData.additionalInfo.last_promotion_date}
+          onChange={(e) => setFormData({
+            ...formData,
+            additionalInfo: {
+              ...formData.additionalInfo,
+              last_promotion_date: e.target.value
+            }
+          })}
+          InputLabelProps={{ shrink: true }}
+        />
+      </Grid>
+      <Grid item xs={12} md={6}>
+        <TextField
+          fullWidth
+          label="Performance Ratings"
+          name="performance_ratings"
+          value={formData.additionalInfo.performance_ratings}
+          onChange={(e) => setFormData({
+            ...formData,
+            additionalInfo: {
+              ...formData.additionalInfo,
+              performance_ratings: e.target.value
+            }
+          })}
+          helperText="Enter in format: {'2023':'A', '2022':'B+', '2021':'A'}"
+        />
+      </Grid>
+      <Grid item xs={12}>
+        <TextField
+          fullWidth
+          label="Special Abilities"
+          name="special_abilities"
+          value={formData.additionalInfo.special_abilities}
+          onChange={(e) => setFormData({
+            ...formData,
+            additionalInfo: {
+              ...formData.additionalInfo,
+              special_abilities: e.target.value
+            }
+          })}
+        />
+      </Grid>
+    </Grid>
+  );
+
+  const renderPerformanceRating = () => (
+    <Grid container spacing={3}>
+      <Grid item xs={12}>
+        <Typography variant="h6" gutterBottom>Performance Ratings</Typography>
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          label="Last Year"
+          label="Last Year Rating"
+          name="last_year"
           value={formData.performanceRating.last_year}
           onChange={(e) => setFormData({
             ...formData,
-            performanceRating: { ...formData.performanceRating, last_year: e.target.value }
+            performanceRating: {
+              ...formData.performanceRating,
+              last_year: e.target.value
+            }
           })}
         />
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          label="Second Last Year"
+          label="Second Last Year Rating"
+          name="second_last_year"
           value={formData.performanceRating.second_last_year}
           onChange={(e) => setFormData({
             ...formData,
-            performanceRating: { ...formData.performanceRating, second_last_year: e.target.value }
+            performanceRating: {
+              ...formData.performanceRating,
+              second_last_year: e.target.value
+            }
           })}
         />
       </Grid>
       <Grid item xs={12} md={4}>
         <TextField
           fullWidth
-          label="Third Last Year"
+          label="Third Last Year Rating"
+          name="third_last_year"
           value={formData.performanceRating.third_last_year}
           onChange={(e) => setFormData({
             ...formData,
-            performanceRating: { ...formData.performanceRating, third_last_year: e.target.value }
+            performanceRating: {
+              ...formData.performanceRating,
+              third_last_year: e.target.value
+            }
           })}
-        />
-      </Grid>
-
-      {/* PF Details */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Provident Fund Details</Typography>
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="UAN No"
-          value={formData.providentFund.uan_no}
-          onChange={(e) => setFormData({
-            ...formData,
-            providentFund: { ...formData.providentFund, uan_no: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="PF No"
-          value={formData.providentFund.pf_no}
-          onChange={(e) => setFormData({
-            ...formData,
-            providentFund: { ...formData.providentFund, pf_no: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="EPS No"
-          value={formData.providentFund.eps_no}
-          onChange={(e) => setFormData({
-            ...formData,
-            providentFund: { ...formData.providentFund, eps_no: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Nominee Name"
-          value={formData.providentFund.nominee_name}
-          onChange={(e) => setFormData({
-            ...formData,
-            providentFund: { ...formData.providentFund, nominee_name: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Nominee Relation"
-          value={formData.providentFund.nominee_relation}
-          onChange={(e) => setFormData({
-            ...formData,
-            providentFund: { ...formData.providentFund, nominee_relation: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Nominee Share %"
-          value={formData.providentFund.nominee_share}
-          onChange={(e) => setFormData({
-            ...formData,
-            providentFund: { ...formData.providentFund, nominee_share: e.target.value }
-          })}
-        />
-      </Grid>
-
-      {/* Gratuity Nominee */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Gratuity Nominee</Typography>
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Nominee Name"
-          value={formData.gratuityNominee.name}
-          onChange={(e) => setFormData({
-            ...formData,
-            gratuityNominee: { ...formData.gratuityNominee, name: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Nominee Relation"
-          value={formData.gratuityNominee.relation}
-          onChange={(e) => setFormData({
-            ...formData,
-            gratuityNominee: { ...formData.gratuityNominee, relation: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Share %"
-          value={formData.gratuityNominee.share}
-          onChange={(e) => setFormData({
-            ...formData,
-            gratuityNominee: { ...formData.gratuityNominee, share: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          label="Employee Age"
-          value={formData.gratuityNominee.employee_age}
-          onChange={(e) => setFormData({
-            ...formData,
-            gratuityNominee: { ...formData.gratuityNominee, employee_age: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          type="date"
-          label="Confirmation Date"
-          value={formData.gratuityNominee.confirmation_date}
-          onChange={(e) => setFormData({
-            ...formData,
-            gratuityNominee: { ...formData.gratuityNominee, confirmation_date: e.target.value }
-          })}
-          InputLabelProps={{ shrink: true }}
-        />
-      </Grid>
-
-      {/* Superannuation */}
-      <Grid item xs={12}>
-        <Typography variant="h6" gutterBottom>Superannuation</Typography>
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Nominee Name"
-          value={formData.superannuation.name}
-          onChange={(e) => setFormData({
-            ...formData,
-            superannuation: { ...formData.superannuation, name: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Nominee Relation"
-          value={formData.superannuation.relation}
-          onChange={(e) => setFormData({
-            ...formData,
-            superannuation: { ...formData.superannuation, relation: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={4}>
-        <TextField
-          fullWidth
-          label="Share %"
-          value={formData.superannuation.share}
-          onChange={(e) => setFormData({
-            ...formData,
-            superannuation: { ...formData.superannuation, share: e.target.value }
-          })}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          type="date"
-          label="Marriage Date"
-          value={formData.superannuation.marriage_date}
-          onChange={(e) => setFormData({
-            ...formData,
-            superannuation: { ...formData.superannuation, marriage_date: e.target.value }
-          })}
-          InputLabelProps={{ shrink: true }}
-        />
-      </Grid>
-      <Grid item xs={12} md={6}>
-        <TextField
-          fullWidth
-          type="date"
-          label="Confirmation Date"
-          value={formData.superannuation.confirmation_date}
-          onChange={(e) => setFormData({
-            ...formData,
-            superannuation: { ...formData.superannuation, confirmation_date: e.target.value }
-          })}
-          InputLabelProps={{ shrink: true }}
         />
       </Grid>
     </Grid>
@@ -2078,13 +2115,15 @@ const EmployeeForm = () => {
       case 4:
         return renderEmergencyContact();
       case 5:
-        return renderEducationAndWorkHistory();
+        return renderEducation();
       case 6:
-        return renderLanguageSkills();
+        return renderWorkHistory();
       case 7:
         return renderAdditionalInfo();
       case 8:
-        return renderPerformanceAndBenefits();
+        return renderLanguageSkills();
+      case 9:
+        return renderPerformanceRating();
       default:
         return 'Unknown step';
     }

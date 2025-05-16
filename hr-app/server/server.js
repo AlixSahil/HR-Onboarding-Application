@@ -12,7 +12,7 @@ const port = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 
 // Oracle Database Configuration
 const dbConfig = {
@@ -51,7 +51,7 @@ async function testConnection() {
   }
 }
 
-// Initialize database connection
+// Initialize DB pool and test connection
 initializePool().then(() => {
   testConnection();
 });
@@ -64,8 +64,19 @@ app.get('/', (req, res) => {
   res.send('HR Application Server is running');
 });
 
-// Start server
-app.listen(port, '0.0.0.0', () => {
-  console.log(`Server is running on port ${port}`);
-  console.log(`Accessible at: http://localhost:${port} or http://your-ip:${port}`);
-}); 
+// Error handling middleware
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'Something went wrong!' });
+});
+
+// Only start the server if this file is run directly
+if (require.main === module) {
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Server is running on port ${port}`);
+    console.log(`Accessible at: http://localhost:${port} or http://your-ip:${port}`);
+  });
+}
+
+// Export app for testing
+module.exports = app;

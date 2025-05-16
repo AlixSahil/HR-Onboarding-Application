@@ -80,6 +80,73 @@ const createEmployee = async (req, res) => {
         connection = await oracledb.getConnection();
         const data = req.body;
         
+        console.log('Received employee data:', data);
+
+        // Helper function to validate and format dates
+        const formatDate = (dateStr) => {
+            if (!dateStr) return null;
+            try {
+                const date = new Date(dateStr);
+                if (isNaN(date.getTime())) {
+                    console.error('Invalid date format:', dateStr);
+                    return null;
+                }
+                return date.toISOString().split('T')[0];
+            } catch (err) {
+                console.error('Error formatting date:', err);
+                return null;
+            }
+        };
+
+        // Validate required fields
+        const requiredFields = [
+            'personal_email', 'official_email', 'joining_reference_id', 'poornata_id',
+            'employee_code', 'first_name', 'last_name', 'dob', 'permanent_address',
+            'aadhar_no', 'mobile_no'
+        ];
+        
+        const missingFields = requiredFields.filter(field => !data.basicInfo[field]);
+        if (missingFields.length > 0) {
+            throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+        }
+
+        // Validate required professional details
+        if (!data.professionalDetails) {
+            throw new Error('Professional details are required');
+        }
+
+        const requiredProfessionalFields = [
+            'department',
+            'designation',
+            'job_band',
+            'doj_unit',
+            'doj_group'
+        ];
+
+        const missingProfessionalFields = requiredProfessionalFields.filter(
+            field => !data.professionalDetails[field]
+        );
+        if (missingProfessionalFields.length > 0) {
+            throw new Error(`Missing required professional fields: ${missingProfessionalFields.join(', ')}`);
+        }
+
+        // Format all date fields
+        const formattedData = {
+            basicInfo: {
+                ...data.basicInfo,
+                dob: formatDate(data.basicInfo.dob)
+            },
+            professionalDetails: {
+                ...data.professionalDetails,
+                doj_unit: formatDate(data.professionalDetails.doj_unit),
+                doj_group: formatDate(data.professionalDetails.doj_group),
+                loi_issue_date: formatDate(data.professionalDetails.loi_issue_date),
+                confirmation_date: formatDate(data.professionalDetails.confirmation_date)
+            }
+        };
+
+        console.log('Formatted data for database:', formattedData);
+
         // Insert into Employee table
         const employeeResult = await connection.execute(
             `INSERT INTO Employee (
@@ -100,30 +167,70 @@ const createEmployee = async (req, res) => {
                 :bank_account_no, :ifsc_code, :mobile_no
             ) RETURNING personal_email INTO :out_email`,
             {
-                ...data.basicInfo,
+                personal_email: formattedData.basicInfo.personal_email,
+                official_email: formattedData.basicInfo.official_email,
+                joining_reference_id: formattedData.basicInfo.joining_reference_id,
+                poornata_id: formattedData.basicInfo.poornata_id,
+                employee_code: formattedData.basicInfo.employee_code,
+                prefix: formattedData.basicInfo.prefix || null,
+                first_name: formattedData.basicInfo.first_name,
+                middle_name: formattedData.basicInfo.middle_name || null,
+                last_name: formattedData.basicInfo.last_name,
+                fathers_name: formattedData.basicInfo.fathers_name || null,
+                mothers_name: formattedData.basicInfo.mothers_name || null,
+                dob: formattedData.basicInfo.dob,
+                gender: formattedData.basicInfo.gender || null,
+                marital_status: formattedData.basicInfo.marital_status || null,
+                blood_group: formattedData.basicInfo.blood_group || null,
+                nationality: formattedData.basicInfo.nationality || null,
+                birth_state: formattedData.basicInfo.birth_state || null,
+                birth_location: formattedData.basicInfo.birth_location || null,
+                religion: formattedData.basicInfo.religion || null,
+                caste: formattedData.basicInfo.caste || null,
+                permanent_address: formattedData.basicInfo.permanent_address,
+                current_address: formattedData.basicInfo.current_address || null,
+                quarter_no: formattedData.basicInfo.quarter_no || null,
+                pan_no: formattedData.basicInfo.pan_no || null,
+                aadhar_no: formattedData.basicInfo.aadhar_no,
+                bank_name: formattedData.basicInfo.bank_name || null,
+                bank_account_no: formattedData.basicInfo.bank_account_no || null,
+                ifsc_code: formattedData.basicInfo.ifsc_code || null,
+                mobile_no: formattedData.basicInfo.mobile_no,
                 out_email: { dir: oracledb.BIND_OUT, type: oracledb.STRING }
             },
             { autoCommit: false }
         );
 
         const personalEmail = employeeResult.outBinds.out_email[0];
+        console.log('Employee record created with email:', personalEmail);
 
         // Insert Professional Details
-        if (data.professionalDetails) {
-            await connection.execute(
-                `INSERT INTO ProfessionalDetails (
-                    personal_email, doj_unit, doj_group, department,
-                    designation, job_band, loi_issue_date, confirmation_date,
-                    current_ctc, supervisor_name
-                ) VALUES (
-                    :personal_email, TO_DATE(:doj_unit, 'YYYY-MM-DD'), TO_DATE(:doj_group, 'YYYY-MM-DD'),
-                    :department, :designation, :job_band, TO_DATE(:loi_issue_date, 'YYYY-MM-DD'),
-                    TO_DATE(:confirmation_date, 'YYYY-MM-DD'), :current_ctc, :supervisor_name
-                )`,
-                { ...data.professionalDetails, personal_email: personalEmail },
-                { autoCommit: false }
-            );
-        }
+        await connection.execute(
+            `INSERT INTO ProfessionalDetails (
+                personal_email, doj_unit, doj_group, department,
+                designation, job_band, loi_issue_date, confirmation_date,
+                current_ctc, supervisor_name
+            ) VALUES (
+                :personal_email, TO_DATE(:doj_unit, 'YYYY-MM-DD'), TO_DATE(:doj_group, 'YYYY-MM-DD'),
+                :department, :designation, :job_band, TO_DATE(:loi_issue_date, 'YYYY-MM-DD'),
+                TO_DATE(:confirmation_date, 'YYYY-MM-DD'), :current_ctc, :supervisor_name
+            )`,
+            {
+                personal_email: personalEmail,
+                doj_unit: formattedData.professionalDetails.doj_unit,
+                doj_group: formattedData.professionalDetails.doj_group,
+                department: formattedData.professionalDetails.department,
+                designation: formattedData.professionalDetails.designation,
+                job_band: formattedData.professionalDetails.job_band,
+                loi_issue_date: formattedData.professionalDetails.loi_issue_date,
+                confirmation_date: formattedData.professionalDetails.confirmation_date,
+                current_ctc: formattedData.professionalDetails.current_ctc || null,
+                supervisor_name: formattedData.professionalDetails.supervisor_name || null
+            },
+            { autoCommit: false }
+        );
+
+        console.log('Professional details inserted successfully');
 
         // Insert Dependents
         if (data.dependents && data.dependents.length > 0) {
@@ -138,10 +245,25 @@ const createEmployee = async (req, res) => {
                         :age, :share_percentage, :address, :aadhar_no, :marital_status,
                         :occupation, :mobile_no, :is_primary
                     )`,
-                    { ...dependent, personal_email: personalEmail },
+                    {
+                        personal_email: personalEmail,
+                        dependent_type: dependent.dependent_type,
+                        name: dependent.name,
+                        relation: dependent.relation,
+                        dob: formatDate(dependent.dob),
+                        age: dependent.age || null,
+                        share_percentage: dependent.share_percentage || null,
+                        address: dependent.address || null,
+                        aadhar_no: dependent.aadhar_no || null,
+                        marital_status: dependent.marital_status || null,
+                        occupation: dependent.occupation || null,
+                        mobile_no: dependent.mobile_no || null,
+                        is_primary: dependent.is_primary || 'N'
+                    },
                     { autoCommit: false }
                 );
             }
+            console.log('Dependents inserted successfully');
         }
 
         // Insert Education History
@@ -155,10 +277,19 @@ const createEmployee = async (req, res) => {
                         :personal_email, :qualification, :institution, :major,
                         TO_DATE(:completion_date, 'YYYY-MM-DD'), :percentage, :state
                     )`,
-                    { ...edu, personal_email: personalEmail },
+                    {
+                        personal_email: personalEmail,
+                        qualification: edu.qualification,
+                        institution: edu.institution,
+                        major: edu.major || null,
+                        completion_date: formatDate(edu.completion_date),
+                        percentage: edu.percentage || null,
+                        state: edu.state || null
+                    },
                     { autoCommit: false }
                 );
             }
+            console.log('Education history inserted successfully');
         }
 
         // Insert Work History
@@ -173,10 +304,20 @@ const createEmployee = async (req, res) => {
                         TO_DATE(:start_date, 'YYYY-MM-DD'), TO_DATE(:end_date, 'YYYY-MM-DD'),
                         :location, :ctc
                     )`,
-                    { ...work, personal_email: personalEmail },
+                    {
+                        personal_email: personalEmail,
+                        is_in_group: work.is_in_group,
+                        organization: work.organization,
+                        job_title: work.job_title || null,
+                        start_date: formatDate(work.start_date),
+                        end_date: formatDate(work.end_date),
+                        location: work.location || null,
+                        ctc: work.ctc || null
+                    },
                     { autoCommit: false }
                 );
             }
+            console.log('Work history inserted successfully');
         }
 
         // Insert Language Skills
@@ -188,26 +329,40 @@ const createEmployee = async (req, res) => {
                     ) VALUES (
                         :personal_email, :language, :speak_level, :read_level, :write_level
                     )`,
-                    { ...skill, personal_email: personalEmail },
+                    {
+                        personal_email: personalEmail,
+                        language: skill.language,
+                        speak_level: skill.speak_level,
+                        read_level: skill.read_level,
+                        write_level: skill.write_level
+                    },
                     { autoCommit: false }
                 );
             }
+            console.log('Language skills inserted successfully');
         }
 
         // Insert Additional Info
         if (data.additionalInfo) {
             await connection.execute(
                 `INSERT INTO AdditionalInfo (
-                    personal_email, hobbies, total_experience, last_promotion_date,
-                    performance_ratings, special_abilities
+                    personal_email, hobbies, total_experience,
+                    last_promotion_date, performance_ratings, special_abilities
                 ) VALUES (
                     :personal_email, :hobbies, :total_experience,
-                    TO_DATE(:last_promotion_date, 'YYYY-MM-DD'),
-                    :performance_ratings, :special_abilities
+                    TO_DATE(:last_promotion_date, 'YYYY-MM-DD'), :performance_ratings, :special_abilities
                 )`,
-                { ...data.additionalInfo, personal_email: personalEmail },
+                {
+                    personal_email: personalEmail,
+                    hobbies: data.additionalInfo.hobbies || null,
+                    total_experience: data.additionalInfo.total_experience || null,
+                    last_promotion_date: formatDate(data.additionalInfo.last_promotion_date),
+                    performance_ratings: data.additionalInfo.performance_ratings || null,
+                    special_abilities: data.additionalInfo.special_abilities || null
+                },
                 { autoCommit: false }
             );
+            console.log('Additional info inserted successfully');
         }
 
         // Insert Performance Rating
@@ -218,19 +373,31 @@ const createEmployee = async (req, res) => {
                 ) VALUES (
                     :personal_email, :last_year, :second_last_year, :third_last_year
                 )`,
-                { ...data.performanceRating, personal_email: personalEmail },
+                {
+                    personal_email: personalEmail,
+                    last_year: data.performanceRating.last_year || null,
+                    second_last_year: data.performanceRating.second_last_year || null,
+                    third_last_year: data.performanceRating.third_last_year || null
+                },
                 { autoCommit: false }
             );
+            console.log('Performance rating inserted successfully');
         }
 
         await connection.commit();
-        res.status(201).json({ message: 'Employee created successfully', personal_email: personalEmail });
+        res.status(201).json({ 
+            message: 'Employee created successfully', 
+            personal_email: personalEmail 
+        });
     } catch (err) {
         if (connection) {
-                await connection.rollback();
+            await connection.rollback();
         }
-        console.error(err);
-        res.status(500).json({ error: 'Error creating employee' });
+        console.error('Error creating employee:', err);
+        res.status(500).json({ 
+            error: err.message || 'Error creating employee',
+            details: err.stack
+        });
     } finally {
         if (connection) {
             await connection.close();
